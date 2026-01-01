@@ -69,12 +69,16 @@ def build_trend_vol_features(df, price_col="Close", trend_windows=[5,20], vol_wi
     return df
 
 def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43, min_rows=30):
+    # Features bauen
     df = build_trend_vol_features(df, price_col=price_col)
     df["Target"] = (df[price_col].shift(-1) > df[price_col]).astype(int)
     features = [c for c in df.columns if "trend" in c or "vol" in c]
 
-    # Prüfen, ob genügend Daten nach dropna() vorhanden sind
-    if len(df.dropna()) < min_rows:
+    # Alle NaNs entfernen
+    df = df.dropna()
+
+    # Prüfen, ob genügend Zeilen für ML
+    if len(df) < min_rows:
         last_date = df.index[-1].date().isoformat() if len(df) > 0 else datetime.utcnow().date().isoformat()
         last_close = float(df[price_col].iloc[-1]) if len(df) > 0 else 0.0
         return {
@@ -86,6 +90,38 @@ def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43
             "cv_std": 0.0,
             "close": last_close
         }
+
+    # Train/Test vorbereiten
+    X = df[features]
+    y = df["Target"]
+
+    tscv = TimeSeriesSplit(n_splits=5)
+    acc = []
+
+    for tr, te in tscv.split(X):
+        if len(te) == 0:  # sehr kleine Datensätze abfangen
+            continue
+        m = LogisticRegression(max_iter=200)
+        m.fit(X.iloc[tr], y.iloc[tr])
+        acc.append(accuracy_score(y.iloc[te], m.predict(X.iloc[te])))
+
+    model = LogisticRegression(max_iter=200)
+    model.fit(X, y)
+
+    last = df.iloc[-1]
+    prob_up = model.predict_proba(last[features].values.reshape(1, -1))[0][1]
+    signal = "UP" if prob_up >= up_threshold else "DOWN" if prob_up <= down_threshold else "NO_TRADE"
+
+    return {
+        "date": last.name.date().isoformat(),
+        "prob_up": prob_up,
+        "prob_down": 1.0 - prob_up,
+        "signal": signal,
+        "cv_mean": np.mean(acc) if acc else 0.0,
+        "cv_std": np.std(acc) if acc else 0.0,
+        "close": float(last[price_col].iloc[0])
+    }
+
 
     df = df.dropna()  # sicherstellen, dass keine NaNs in X bleiben
     X = df[features]
