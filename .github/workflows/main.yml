@@ -9,10 +9,6 @@ on:
 jobs:
   forecast:
     runs-on: ubuntu-latest
-    
-if os.path.exists(OUT_TXT):
-    print(f"[OK] TXT exists: {OUT_TXT}")
-else:
     print("[ERROR] TXT was not created!")
 
     steps:
