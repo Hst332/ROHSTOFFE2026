@@ -1,0 +1,36 @@
+name: Daily Energy Forecast
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # jeden Tag um 12:00 UTC
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scikit-learn yfinance
+
+      - name: Create output folder
+        run: mkdir -p output
+
+      - name: Run Forecast
+        run: python src/forecast_energy.py
+
+      - name: Upload forecast output
+        uses: actions/upload-artifact@v3
+        with:
+          name: energy-forecast
+          path: output/energy_forecast_output.txt
