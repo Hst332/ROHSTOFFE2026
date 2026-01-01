@@ -12,16 +12,22 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import accuracy_score
 
-
-OUT_TXT = "output/energy_forecast_output.txt"
-
-# -----------------------
+# =======================
 # CONFIG
-# -----------------------
+# =======================
+OUT_TXT = "output/energy_forecast_output.txt"
 UP_THRESHOLD = 0.60
 DOWN_THRESHOLD = 0.40
 
-# Symbols
+# Gas & Oil Symbols
+GAS_SYMBOL = "NG=F"
+SYMBOL_BRENT = "BZ=F"
+SYMBOL_WTI = "CL=F"
+
+START_DATE_GAS = "2014-01-01"
+START_DATE_OIL = "2015-01-01"
+
+# Additional Assets (ML-based)
 ASSETS_ML = {
     "Gold": "GC=F",
     "Silver": "SI=F",
@@ -30,16 +36,74 @@ ASSETS_ML = {
     "DAX": "^GDAXI"
 }
 
-# Gas & Oil Config
-START_DATE_GAS = "2014-01-01"
-START_DATE_OIL = "2015-01-01"
-GAS_SYMBOL = "NG=F"
-SYMBOL_BRENT = "BZ=F"
-SYMBOL_WTI = "CL=F"
+# =======================
+# HELPER FUNCTIONS
+# =======================
+def write_output_txt(filename, results):
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("===================================\n")
+        f.write("   ENERGY FORECAST – CODE A\n")
+        f.write("===================================\n")
+        f.write(f"Run time (UTC): {datetime.utcnow():%Y-%m-%d %H:%M:%S UTC}\n\n")
+        for asset in results:
+            f.write(f"--------- {asset['name']} ---------\n")
+            f.write(f"Data date : {asset['date']}\n")
+            if "cv_mean" in asset:
+                f.write(f"Model CV  : {asset['cv_mean']:.2%} ± {asset['cv_std']:.2%}\n")
+            if "close" in asset:
+                f.write(f"Close      : {asset['close']:.2f}\n")
+            if "spread" in asset:
+                f.write(f"Spread     : {asset['spread']:.2f}\n")
+            f.write(f"Prob UP   : {asset['prob_up']:.2%}\n")
+            f.write(f"Prob DOWN : {asset['prob_down']:.2%}\n")
+            f.write(f"Signal    : {asset['signal']}\n\n")
+        f.write("===================================\n")
 
-# -----------------------
+def build_trend_vol_features(df, price_col="Close", trend_windows=[5,20], vol_window=10):
+    df = df.copy()
+    df["ret"] = df[price_col].pct_change()
+    for w in trend_windows:
+        df[f"trend_{w}"] = df[price_col].pct_change(w)
+    df[f"vol_{vol_window}"] = df["ret"].rolling(vol_window).std()
+    df.dropna(inplace=True)
+    return df
+
+def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43):
+    df = build_trend_vol_features(df, price_col=price_col)
+    df["Target"] = (df[price_col].shift(-1) > df[price_col]).astype(int)
+    features = [c for c in df.columns if "trend" in c or "vol" in c]
+
+    X = df[features]
+    y = df["Target"]
+
+    tscv = TimeSeriesSplit(n_splits=5)
+    acc = []
+
+    for tr, te in tscv.split(X):
+        m = LogisticRegression(max_iter=200)
+        m.fit(X.iloc[tr], y.iloc[tr])
+        acc.append(accuracy_score(y.iloc[te], m.predict(X.iloc[te])))
+
+    model = LogisticRegression(max_iter=200)
+    model.fit(X, y)
+
+    last = df.iloc[-1]  # <-- Series, nicht DataFrame
+    prob_up = model.predict_proba(last[features].values.reshape(1, -1))[0][1]
+    signal = "UP" if prob_up >= up_threshold else "DOWN" if prob_up <= down_threshold else "NO_TRADE"
+
+    return {
+        "date": last.name.date().isoformat(),
+        "prob_up": prob_up,
+        "prob_down": 1.0 - prob_up,
+        "signal": signal,
+        "cv_mean": np.mean(acc),
+        "cv_std": np.std(acc),
+        "close": float(last[price_col])
+    }
+
+# =======================
 # GAS
-# -----------------------
+# =======================
 def load_gas_prices():
     df = yf.download(GAS_SYMBOL, start=START_DATE_GAS, auto_adjust=True, progress=False)
     df = df[["Close"]].rename(columns={"Close":"Gas_Close"})
@@ -60,6 +124,7 @@ def build_gas_features(df, storage_df):
     df["trend_20"] = df["Gas_Close"].pct_change(20)
     df["vol_10"] = df["ret"].rolling(10).std()
     df["Target"] = (df["ret"].shift(-1) > 0).astype(int)
+
     if storage_df is not None:
         storage_df["surprise"] = storage_df["Storage"] - storage_df["FiveYearAvg"]
         storage_df["surprise_z"] = (storage_df["surprise"] - storage_df["surprise"].rolling(52).mean()) / storage_df["surprise"].rolling(52).std()
@@ -69,6 +134,7 @@ def build_gas_features(df, storage_df):
         df.set_index("Date", inplace=True)
     else:
         df["surprise_z"] = 0.0
+
     df.dropna(inplace=True)
     return df
 
@@ -88,25 +154,24 @@ def train_gas_model(df):
     model = LogisticRegression(max_iter=200)
     model.fit(X, y)
 
-    last = df.iloc[-1:]
-    prob_up = model.predict_proba(last[features])[0][1]
+    last = df.iloc[-1]  # <-- Series
+    prob_up = model.predict_proba(last[features].values.reshape(1, -1))[0][1]
     signal = "UP" if prob_up >= UP_THRESHOLD else "DOWN" if prob_up <= DOWN_THRESHOLD else "NO_TRADE"
 
     return {
-        "name": "NATURAL GAS",
-        "date": last.index[0].date().isoformat(),
-        "prob_up": prob_up,
-        "prob_down": 1.0 - prob_up,
-        "signal": signal,
-        "cv_mean": float(np.mean(acc)),
-        "cv_std": float(np.std(acc)),
-        "close": float(last["Gas_Close"])
+        "name":"NATURAL GAS",
+        "date":last.name.date().isoformat(),
+        "prob_up":prob_up,
+        "prob_down":1.0-prob_up,
+        "signal":signal,
+        "cv_mean":float(np.mean(acc)),
+        "cv_std":float(np.std(acc)),
+        "close":float(last["Gas_Close"])
     }
 
-
-# -----------------------
+# =======================
 # OIL
-# -----------------------
+# =======================
 def load_oil_prices():
     brent = yf.download(SYMBOL_BRENT, start=START_DATE_OIL, progress=False)
     wti = yf.download(SYMBOL_WTI, start=START_DATE_OIL, progress=False)
@@ -117,7 +182,6 @@ def load_oil_prices():
     return df
 
 def build_oil_signal(df):
-    df = df.copy()
     df["Brent_Trend"] = df["Brent_Close"] > df["Brent_Close"].rolling(20).mean()
     df["WTI_Trend"] = df["WTI_Close"] > df["WTI_Close"].rolling(20).mean()
     df["Spread"] = df["Brent_Close"] - df["WTI_Close"]
@@ -144,9 +208,9 @@ def build_oil_signal(df):
         "wti":float(last["WTI_Close"])
     }
 
-# -----------------------
+# =======================
 # MAIN
-# -----------------------
+# =======================
 def main():
     results = []
 
@@ -163,7 +227,7 @@ def main():
     results.append(oil_res)
 
     # ML Assets: Gold, Silber, Kupfer, SP500, DAX
-    for name,symbol in ASSETS_ML.items():
+    for name, symbol in ASSETS_ML.items():
         df = yf.download(symbol, start="2015-01-01", progress=False)
         if df.empty:
             continue
