@@ -68,10 +68,24 @@ def build_trend_vol_features(df, price_col="Close", trend_windows=[5,20], vol_wi
     df.dropna(inplace=True)
     return df
 
-def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43):
+def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43, min_rows=30):
     df = build_trend_vol_features(df, price_col=price_col)
     df["Target"] = (df[price_col].shift(-1) > df[price_col]).astype(int)
     features = [c for c in df.columns if "trend" in c or "vol" in c]
+
+    if len(df) < min_rows:
+        # Zu wenig Daten, sichere Default-Werte
+        last_date = df.index[-1].date().isoformat() if len(df) > 0 else datetime.utcnow().date().isoformat()
+        last_close = float(df[price_col].iloc[-1]) if len(df) > 0 else 0.0
+        return {
+            "date": last_date,
+            "prob_up": 0.5,
+            "prob_down": 0.5,
+            "signal": "NO_TRADE",
+            "cv_mean": 0.0,
+            "cv_std": 0.0,
+            "close": last_close
+        }
 
     X = df[features]
     y = df["Target"]
@@ -87,7 +101,7 @@ def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43
     model = LogisticRegression(max_iter=200)
     model.fit(X, y)
 
-    last = df.iloc[-1]  # <-- Series, nicht DataFrame
+    last = df.iloc[-1]  # Series
     prob_up = model.predict_proba(last[features].values.reshape(1, -1))[0][1]
     signal = "UP" if prob_up >= up_threshold else "DOWN" if prob_up <= down_threshold else "NO_TRADE"
 
@@ -100,6 +114,7 @@ def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43
         "cv_std": np.std(acc),
         "close": float(last[price_col])
     }
+
 
 # =======================
 # GAS
