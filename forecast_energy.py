@@ -26,7 +26,9 @@ from sklearn.metrics import accuracy_score
 # =======================
 START_DATE_GAS = "2014-01-01"
 START_DATE_OIL = "2015-01-01"
-OUT_TXT = "forecast_output.txt"
+import os
+OUT_TXT = os.path.join(os.getcwd(), "forecast_output.txt")
+
 
 GAS_SYMBOL = "NG=F"
 SYMBOL_BRENT = "BZ=F"
@@ -243,6 +245,7 @@ def write_output_txt(all_assets, filename=OUT_TXT):
             f.write(f"Signal    : {asset['signal']}\n\n")
         f.write("===================================\n")
     print(f"[OK] Forecast TXT written: {filename}")
+    print(f"[DEBUG] Forecast TXT path: {os.path.abspath(filename)}")
 
 # =======================
 # -------- MAIN ----------
