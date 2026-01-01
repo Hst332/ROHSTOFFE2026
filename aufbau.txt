@@ -1,17 +1,11 @@
-energy_forecast/
-│
-├── README.md                  # Projektbeschreibung
-├── requirements.txt           # pandas, numpy, sklearn, yfinance
-│
-├── data/                      # lokale CSVs (z.B. eia_storage.csv)
-│
+ROHSTOFFE2026/
 ├── src/
-│   ├── forecast_gas.py
-│   ├── forecast_oil.py
-│   ├── forecast_metals.py     # Gold, Silber, Kupfer
-│   ├── forecast_equities.py   # SP500, DAX
-│   ├── utils.py               # Loaders, Feature-Engineering, TXT Output
-│   └── main.py                # Runner für alle Assets
-│
-├── output/                    # TXT Forecast Output
-└── notebooks/                 # Explorative Analysen, Feature Engineering
+│   ├── forecast_energy.py      # Gas + Öl + neue Assets
+│   └── utils.py                # Helper Funktionen
+├── data/
+│   └── eia_storage.csv
+├── output/
+├── .github/
+│   └── workflows/
+│       └── main.yml
+└── requirements.txt
