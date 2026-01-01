@@ -9,7 +9,6 @@ on:
 jobs:
   forecast:
     runs-on: ubuntu-latest
-    print("[ERROR] TXT was not created!")
 
     steps:
       # 1️⃣ Repository auschecken
