@@ -199,7 +199,7 @@ def train_gas_model(df):
     model = LogisticRegression(max_iter=200)
     model.fit(X, y)
 
-    last = df.iloc[-1]  # <-- Series
+    last = df.iloc[-1]
     prob_up = model.predict_proba(last[features].values.reshape(1, -1))[0][1]
     signal = "UP" if prob_up >= UP_THRESHOLD else "DOWN" if prob_up <= DOWN_THRESHOLD else "NO_TRADE"
 
@@ -211,8 +211,9 @@ def train_gas_model(df):
         "signal":signal,
         "cv_mean":float(np.mean(acc)),
         "cv_std":float(np.std(acc)),
-        "close":float(last["Gas_Close"])
+        "close":float(last["Gas_Close"].iloc[0])
     }
+
 
 # =======================
 # OIL
