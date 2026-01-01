@@ -4,10 +4,14 @@ CODE A – ENERGY FORECAST
 Gas + Oil + Gold + Silber + Kupfer + SP500 + DAX
 """
 
-import yfinance as yf
-from datetime import datetime
+import numpy as np
 import pandas as pd
-from utils import write_output_txt, train_ml_model
+from datetime import datetime
+import yfinance as yf
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import accuracy_score
+
 
 OUT_TXT = "output/energy_forecast_output.txt"
 
@@ -69,33 +73,36 @@ def build_gas_features(df, storage_df):
     return df
 
 def train_gas_model(df):
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import TimeSeriesSplit
-    from sklearn.metrics import accuracy_score
     features = ["trend_5","trend_20","vol_10","surprise_z"]
     X = df[features]
     y = df["Target"]
+
     tscv = TimeSeriesSplit(n_splits=5)
     acc = []
+
     for tr, te in tscv.split(X):
         m = LogisticRegression(max_iter=200)
-        m.fit(X.iloc[tr],y.iloc[tr])
+        m.fit(X.iloc[tr], y.iloc[tr])
         acc.append(accuracy_score(y.iloc[te], m.predict(X.iloc[te])))
+
     model = LogisticRegression(max_iter=200)
-    model.fit(X,y)
+    model.fit(X, y)
+
     last = df.iloc[-1:]
     prob_up = model.predict_proba(last[features])[0][1]
     signal = "UP" if prob_up >= UP_THRESHOLD else "DOWN" if prob_up <= DOWN_THRESHOLD else "NO_TRADE"
+
     return {
-        "name":"NATURAL GAS",
-        "date":last.index[0].date().isoformat(),
-        "prob_up":prob_up,
-        "prob_down":1.0-prob_up,
-        "signal":signal,
-        "cv_mean":float(np.mean(acc)),
-        "cv_std":float(np.std(acc)),
-        "close":float(last["Gas_Close"])
+        "name": "NATURAL GAS",
+        "date": last.index[0].date().isoformat(),
+        "prob_up": prob_up,
+        "prob_down": 1.0 - prob_up,
+        "signal": signal,
+        "cv_mean": float(np.mean(acc)),
+        "cv_std": float(np.std(acc)),
+        "close": float(last["Gas_Close"])
     }
+
 
 # -----------------------
 # OIL
