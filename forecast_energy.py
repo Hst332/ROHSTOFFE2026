@@ -123,6 +123,7 @@ def train_ml_model(df, price_col="Close", up_threshold=0.57, down_threshold=0.43
     }
 
 
+
     df = df.dropna()  # sicherstellen, dass keine NaNs in X bleiben
     X = df[features]
     y = df["Target"]
