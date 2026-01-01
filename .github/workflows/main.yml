@@ -27,7 +27,8 @@ jobs:
         run: mkdir -p output
 
       - name: Run Forecast
-        run: python src/forecast_energy.py
+        run: python forecast_energy.py
+
 
       - name: Upload forecast output
         uses: actions/upload-artifact@v4  # <-- updated
