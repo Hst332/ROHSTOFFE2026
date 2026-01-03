@@ -18,3 +18,16 @@ def interpret_regime(regime):
         )
     }
     return interpretations.get(regime, "")
+    
+def regime_confidence(gas, metals):
+    copper = next(m for m in metals if m["commodity"] == "Copper")
+    gold = next(m for m in metals if m["commodity"] == "Gold")
+
+    spread = abs(gas["bull"] - copper["bull"])
+
+    if spread > 20:
+        return "hoch"
+    if spread > 10:
+        return "mittel"
+    return "niedrig"
+
