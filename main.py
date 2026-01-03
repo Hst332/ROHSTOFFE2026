@@ -28,6 +28,16 @@ def main():
         "cv_mean": cv_mean,
         "cv_std": cv_std
     })
+    gas = forecast_gas_2026()
+    metals = forecast_metals_2026()["metals"]
+    
+    regime = detect_macro_regime(
+        gas=gas,
+        copper=next(m for m in metals if m["commodity"] == "Copper"),
+        gold=next(m for m in metals if m["commodity"] == "Gold")
+    )
+    
+    metals = adjust_metals_for_regime(metals, regime)
 
     # OIL
     oil_df = load_oil_prices()
