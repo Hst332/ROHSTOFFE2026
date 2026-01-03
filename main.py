@@ -2,6 +2,8 @@ from forecast_gas import train_gas_model, load_gas_prices, load_eia_storage, bui
 from forecast_oil import build_oil_signal, load_oil_prices
 from forecast_metals import load_metal, train_metal_model
 from forecast_equities import load_equity, train_equity_model
+from forecast_gold import forecast_gold_2026
+from forecast_silver import forecast_silver_2026
 from utils import write_output_txt
 
 OUT_TXT = "output/energy_forecast_output.txt"
